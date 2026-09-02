@@ -8,9 +8,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'api_client.dart';
+import 'cert_pinning.dart';
 import 'voltex_config.dart';
 
 enum VoltexWsFrameType {
@@ -66,7 +68,14 @@ class VoltexWebSocketService {
     try {
       final ticket = await _apiClient.createWebSocketTicket();
       final uri = Uri.parse('${VoltexConfig.wsBaseUrl}?ticket=$ticket');
-      final channel = WebSocketChannel.connect(uri);
+      // Use the same pinned HttpClient as the REST layer (§16 "Transport")
+      // so the WebSocket TLS handshake is subject to the identical
+      // certificate pin - an unpinned WS connection would otherwise be a
+      // MITM back door even with a pinned REST client.
+      final channel = IOWebSocketChannel.connect(
+        uri,
+        customClient: VoltexCertPinning.createPinnedHttpClient(),
+      );
       await channel.ready;
 
       _channel = channel;
@@ -146,9 +155,10 @@ class VoltexWebSocketService {
       return; // give up, matching the web client
     }
 
-    final delayMs = (VoltexConfig.wsBaseReconnectDelay.inMilliseconds *
-            (1 << _reconnectAttempts))
-        .clamp(0, VoltexConfig.wsMaxReconnectDelay.inMilliseconds);
+    final delayMs =
+        (VoltexConfig.wsBaseReconnectDelay.inMilliseconds *
+                (1 << _reconnectAttempts))
+            .clamp(0, VoltexConfig.wsMaxReconnectDelay.inMilliseconds);
     _reconnectAttempts += 1;
 
     _reconnectTimer = Timer(Duration(milliseconds: delayMs), () {
@@ -163,11 +173,13 @@ class VoltexWebSocketService {
     final channel = _channel;
     if (channel == null) return false;
     try {
-      channel.sink.add(jsonEncode({
-        'type': 'message',
-        'id': clientMessageId,
-        'data': envelope,
-      }));
+      channel.sink.add(
+        jsonEncode({
+          'type': 'message',
+          'id': clientMessageId,
+          'data': envelope,
+        }),
+      );
       return true;
     } catch (_) {
       return false;

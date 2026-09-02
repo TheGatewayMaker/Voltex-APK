@@ -31,23 +31,31 @@ class DecryptedMessage extends Equatable {
     MessageDeliveryState? state,
     int? timestamp,
   }) => DecryptedMessage(
-        id: id ?? this.id,
-        clientId: clientId,
-        senderId: senderId,
-        recipientId: recipientId,
-        plaintext: plaintext,
-        timestamp: timestamp ?? this.timestamp,
-        state: state ?? this.state,
-        isMine: isMine,
-      );
+    id: id ?? this.id,
+    clientId: clientId,
+    senderId: senderId,
+    recipientId: recipientId,
+    plaintext: plaintext,
+    timestamp: timestamp ?? this.timestamp,
+    state: state ?? this.state,
+    isMine: isMine,
+  );
 
   /// Detects the VOLTEX_IMAGE:: payload prefix described in
   /// ANDROID_INTEGRATION.md §10.
   bool get isImagePayload => plaintext.startsWith('VOLTEX_IMAGE::');
 
   @override
-  List<Object?> get props =>
-      [id, clientId, senderId, recipientId, plaintext, timestamp, state, isMine];
+  List<Object?> get props => [
+    id,
+    clientId,
+    senderId,
+    recipientId,
+    plaintext,
+    timestamp,
+    state,
+    isMine,
+  ];
 }
 
 /// A row in the conversation list (ANDROID_INTEGRATION.md §7.5:
@@ -83,11 +91,11 @@ class ConversationSummary extends Equatable {
 
   @override
   List<Object?> get props => [
-        username,
-        userId,
-        avatarUrl,
-        lastMessagePreview,
-        lastMessageTimestamp,
-        unreadCount,
-      ];
+    username,
+    userId,
+    avatarUrl,
+    lastMessagePreview,
+    lastMessageTimestamp,
+    unreadCount,
+  ];
 }

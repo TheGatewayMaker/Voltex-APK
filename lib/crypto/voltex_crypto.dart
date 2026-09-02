@@ -67,11 +67,11 @@ class VoltexKeyPair {
   String get userId => VoltexCrypto.deriveUserId(publicKey);
 
   Map<String, dynamic> toJson() => {
-        'publicKeyBase64': publicKeyBase64,
-        'privateKeyBase64': privateKeyBase64,
-        'signPublicKeyBase64': signPublicKeyBase64,
-        'signPrivateKeyBase64': signPrivateKeyBase64,
-      };
+    'publicKeyBase64': publicKeyBase64,
+    'privateKeyBase64': privateKeyBase64,
+    'signPublicKeyBase64': signPublicKeyBase64,
+    'signPrivateKeyBase64': signPrivateKeyBase64,
+  };
 
   factory VoltexKeyPair.fromJson(Map<String, dynamic> json) {
     final privateKeyBytes = b64d(json['privateKeyBase64'] as String);
@@ -116,22 +116,22 @@ class VoltexEnvelope {
   });
 
   Map<String, dynamic> toJson() => {
-        'nonce': nonce,
-        'ciphertext': ciphertext,
-        'signature': signature,
-        if (senderId != null) 'senderId': senderId,
-        'recipientId': recipientId,
-        'timestamp': timestamp,
-      };
+    'nonce': nonce,
+    'ciphertext': ciphertext,
+    'signature': signature,
+    if (senderId != null) 'senderId': senderId,
+    'recipientId': recipientId,
+    'timestamp': timestamp,
+  };
 
   factory VoltexEnvelope.fromJson(Map<String, dynamic> json) => VoltexEnvelope(
-        nonce: json['nonce'] as String,
-        ciphertext: json['ciphertext'] as String,
-        signature: json['signature'] as String,
-        senderId: json['senderId'] as String?,
-        recipientId: json['recipientId'] as String,
-        timestamp: json['timestamp'] as int,
-      );
+    nonce: json['nonce'] as String,
+    ciphertext: json['ciphertext'] as String,
+    signature: json['signature'] as String,
+    senderId: json['senderId'] as String?,
+    recipientId: json['recipientId'] as String,
+    timestamp: json['timestamp'] as int,
+  );
 }
 
 /// Thrown when a message fails signature verification or AEAD decryption.
@@ -157,15 +157,13 @@ class VoltexCrypto {
   static VoltexKeyPair generateKeyPair() {
     final boxPrivate = box.PrivateKey.generate();
     final boxPrivateBytes = Uint8List.fromList(boxPrivate.asTypedList);
-    final boxPublicBytes =
-        Uint8List.fromList(boxPrivate.publicKey.asTypedList);
+    final boxPublicBytes = Uint8List.fromList(boxPrivate.publicKey.asTypedList);
 
     // Ed25519 signing keypair, seeded with the X25519 SECRET key. This is
     // the unusual cross-primitive key reuse mandated by
     // ANDROID_INTEGRATION.md §2.1 - reproduce exactly.
     final signKey = ed.SigningKey.fromSeed(boxPrivateBytes);
-    final signPublicBytes =
-        Uint8List.fromList(signKey.verifyKey.asTypedList);
+    final signPublicBytes = Uint8List.fromList(signKey.verifyKey.asTypedList);
     final signPrivateBytes = Uint8List.fromList(signKey.asTypedList);
 
     return VoltexKeyPair(
@@ -181,14 +179,12 @@ class VoltexCrypto {
   /// bytes are available (e.g. legacy stored data).
   static VoltexKeyPair keyPairFromPrivateKey(Uint8List privateKeyBytes) {
     final boxPrivate = box.PrivateKey(privateKeyBytes);
-    final boxPublicBytes =
-        Uint8List.fromList(boxPrivate.publicKey.asTypedList);
+    final boxPublicBytes = Uint8List.fromList(boxPrivate.publicKey.asTypedList);
     final signKey = ed.SigningKey.fromSeed(privateKeyBytes);
     return VoltexKeyPair(
       publicKey: boxPublicBytes,
       privateKey: privateKeyBytes,
-      signPublicKey:
-          Uint8List.fromList(signKey.verifyKey.asTypedList),
+      signPublicKey: Uint8List.fromList(signKey.verifyKey.asTypedList),
       signPrivateKey: Uint8List.fromList(signKey.asTypedList),
     );
   }
@@ -230,10 +226,9 @@ class VoltexCrypto {
   }
 
   static bool validatePassphraseFormat(String passphrase) {
-    final words = normalizePassphrase(passphrase)
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .toList();
+    final words = normalizePassphrase(
+      passphrase,
+    ).split(' ').where((w) => w.isNotEmpty).toList();
     return words.length == 24;
   }
 
@@ -339,10 +334,8 @@ class VoltexCrypto {
         nonce: iv,
         mac: pc.Mac(tagOnly),
       );
-      final plaintext =
-          await algorithm.decrypt(secretBox, secretKey: wrapKey);
-      final json =
-          jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+      final plaintext = await algorithm.decrypt(secretBox, secretKey: wrapKey);
+      final json = jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
       return VoltexKeyPair.fromJson(json);
     } catch (e) {
       throw VoltexDecryptionException('Failed to decrypt keypair: $e');
@@ -361,8 +354,7 @@ class VoltexCrypto {
     final key = ed.SigningKey.fromValidBytes(signPrivateKey);
     final signed = key.sign(Uint8List.fromList(utf8.encode(challenge)));
     // signed = signature (64B) || message; take just the signature prefix.
-    final signatureBytes =
-        Uint8List.fromList(signed.signature.asTypedList);
+    final signatureBytes = Uint8List.fromList(signed.signature.asTypedList);
     return b64e(signatureBytes);
   }
 
@@ -375,10 +367,7 @@ class VoltexCrypto {
       final verifyKey = ed.VerifyKey(signPublicKey);
       final sig = b64d(signatureBase64);
       final message = Uint8List.fromList(utf8.encode(challenge));
-      return verifyKey.verify(
-        signature: ed.Signature(sig),
-        message: message,
-      );
+      return verifyKey.verify(signature: ed.Signature(sig), message: message);
     } catch (_) {
       return false;
     }
@@ -453,8 +442,7 @@ class VoltexCrypto {
         message: toVerify,
       );
       if (!ok) {
-        throw const VoltexDecryptionException(
-            'Signature verification failed');
+        throw const VoltexDecryptionException('Signature verification failed');
       }
     } catch (e) {
       if (e is VoltexDecryptionException) rethrow;
@@ -483,12 +471,8 @@ class VoltexCrypto {
   /// Encrypt raw file bytes with a freshly generated AES-256-GCM key. The
   /// key and IV are returned so the caller can embed them inside a
   /// VOLTEX_IMAGE:: message payload (§10) - the server never sees the key.
-  static Future<
-      ({
-        Uint8List encryptedBytes,
-        String keyBase64,
-        String ivBase64,
-      })> encryptMedia(Uint8List fileBytes) async {
+  static Future<({Uint8List encryptedBytes, String keyBase64, String ivBase64})>
+  encryptMedia(Uint8List fileBytes) async {
     final algorithm = pc.AesGcm.with256bits();
     final secretKey = await algorithm.newSecretKey();
     final iv = generateRandomBytes(12);
@@ -513,10 +497,11 @@ class VoltexCrypto {
   }) async {
     final algorithm = pc.AesGcm.with256bits();
     final macLength = algorithm.macAlgorithm.macLength;
-    final cipherOnly =
-        encryptedBytes.sublist(0, encryptedBytes.length - macLength);
-    final tagOnly =
-        encryptedBytes.sublist(encryptedBytes.length - macLength);
+    final cipherOnly = encryptedBytes.sublist(
+      0,
+      encryptedBytes.length - macLength,
+    );
+    final tagOnly = encryptedBytes.sublist(encryptedBytes.length - macLength);
     final iv = b64d(ivBase64);
     final secretBox = pc.SecretBox(cipherOnly, nonce: iv, mac: pc.Mac(tagOnly));
     final secretKey = pc.SecretKey(b64d(keyBase64));

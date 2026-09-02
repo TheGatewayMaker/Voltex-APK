@@ -43,16 +43,23 @@ class GroupMember extends Equatable {
   bool get isAdmin => role == GroupMemberRole.admin;
 
   factory GroupMember.fromJson(Map<String, dynamic> json) => GroupMember(
-        userId: json['userId'] as String,
-        username: json['username'] as String?,
-        role: _parseRole(json['role'] as String?),
-        status: _parseStatus(json['status'] as String?),
-        joinedAt: (json['joinedAt'] as num?)?.toInt() ?? 0,
-        addedBy: json['addedBy'] as String?,
-      );
+    userId: json['userId'] as String,
+    username: json['username'] as String?,
+    role: _parseRole(json['role'] as String?),
+    status: _parseStatus(json['status'] as String?),
+    joinedAt: (json['joinedAt'] as num?)?.toInt() ?? 0,
+    addedBy: json['addedBy'] as String?,
+  );
 
   @override
-  List<Object?> get props => [userId, username, role, status, joinedAt, addedBy];
+  List<Object?> get props => [
+    userId,
+    username,
+    role,
+    status,
+    joinedAt,
+    addedBy,
+  ];
 }
 
 class GroupRecord extends Equatable {
@@ -78,20 +85,27 @@ class GroupRecord extends Equatable {
       members.where((m) => m.isActive).toList();
 
   factory GroupRecord.fromJson(Map<String, dynamic> json) => GroupRecord(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        bio: json['bio'] as String?,
-        avatarUrl: json['avatarUrl'] as String?,
-        createdBy: json['createdBy'] as String? ?? '',
-        members: (json['members'] as List<dynamic>? ?? [])
-            .map((m) => GroupMember.fromJson(m as Map<String, dynamic>))
-            .toList(),
-        pinnedMessageId: json['pinnedMessageId'] as String?,
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    bio: json['bio'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+    createdBy: json['createdBy'] as String? ?? '',
+    members: (json['members'] as List<dynamic>? ?? [])
+        .map((m) => GroupMember.fromJson(m as Map<String, dynamic>))
+        .toList(),
+    pinnedMessageId: json['pinnedMessageId'] as String?,
+  );
 
   @override
-  List<Object?> get props =>
-      [id, name, bio, avatarUrl, createdBy, members, pinnedMessageId];
+  List<Object?> get props => [
+    id,
+    name,
+    bio,
+    avatarUrl,
+    createdBy,
+    members,
+    pinnedMessageId,
+  ];
 }
 
 class GroupConversationSummary extends Equatable {
@@ -124,8 +138,14 @@ class GroupConversationSummary extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [groupId, name, avatarUrl, lastMessagePreview, lastMessageTimestamp, unreadCount];
+  List<Object?> get props => [
+    groupId,
+    name,
+    avatarUrl,
+    lastMessagePreview,
+    lastMessageTimestamp,
+    unreadCount,
+  ];
 }
 
 class GroupInviteSummary extends Equatable {
@@ -153,6 +173,11 @@ class GroupInviteSummary extends Equatable {
       );
 
   @override
-  List<Object?> get props =>
-      [inviteId, groupId, groupName, invitedBy, createdAt];
+  List<Object?> get props => [
+    inviteId,
+    groupId,
+    groupName,
+    invitedBy,
+    createdAt,
+  ];
 }

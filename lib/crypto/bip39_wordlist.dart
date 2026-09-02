@@ -22,8 +22,9 @@ class Bip39Wordlist {
     final cached = _cached;
     if (cached != null) return cached;
 
-    final raw =
-        await rootBundle.loadString('assets/wordlist/bip39_english.txt');
+    final raw = await rootBundle.loadString(
+      'assets/wordlist/bip39_english.txt',
+    );
     final words = raw
         .split('\n')
         .map((w) => w.trim())
@@ -32,8 +33,9 @@ class Bip39Wordlist {
 
     if (words.length != 2048) {
       throw StateError(
-          'BIP-39 English wordlist must contain exactly 2048 words, '
-          'found ${words.length}');
+        'BIP-39 English wordlist must contain exactly 2048 words, '
+        'found ${words.length}',
+      );
     }
 
     _cached = words;
@@ -45,7 +47,8 @@ class Bip39Wordlist {
     final cached = _cached;
     if (cached == null) {
       throw StateError(
-          'Bip39Wordlist.load() must be awaited before accessing words');
+        'Bip39Wordlist.load() must be awaited before accessing words',
+      );
     }
     return cached;
   }

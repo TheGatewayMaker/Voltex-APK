@@ -93,6 +93,9 @@ flutter:
 
   assets:
     - assets/wordlist/bip39_english.txt
+    - assets/certs/le_intermediate_ye1.pem
+    - assets/certs/isrg_root_ye.pem
+    - assets/certs/isrg_root_x2.pem
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -158,8 +158,10 @@ class VoltexTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: VoltexColors.input,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(VoltexRadii.base),
           borderSide: const BorderSide(color: VoltexColors.border),

@@ -35,6 +35,17 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // ANDROID_INTEGRATION.md §16 "In the binary": R8 with obfuscation
+            // enabled, no debug symbols. Use --split-debug-info at build
+            // time (flutter build apk --release --obfuscate --split-debug-info=...)
+            // to keep a private symbol map for crash deobfuscation without
+            // shipping symbols in the APK itself.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

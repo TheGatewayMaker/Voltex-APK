@@ -19,12 +19,12 @@ class UserProfile extends Equatable {
   });
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
-        userId: json['userId'] as String? ?? '',
-        username: json['username'] as String,
-        bio: json['bio'] as String?,
-        avatarUrl: json['avatarUrl'] as String?,
-        discoverable: json['discoverable'] as bool? ?? true,
-      );
+    userId: json['userId'] as String? ?? '',
+    username: json['username'] as String,
+    bio: json['bio'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+    discoverable: json['discoverable'] as bool? ?? true,
+  );
 
   @override
   List<Object?> get props => [userId, username, bio, avatarUrl, discoverable];
@@ -68,14 +68,19 @@ class DeviceSession extends Equatable {
   });
 
   factory DeviceSession.fromJson(Map<String, dynamic> json) => DeviceSession(
-        sessionId: json['sessionId'] as String? ?? json['id'] as String,
-        deviceLabel: json['deviceLabel'] as String? ?? json['label'] as String?,
-        createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
-        lastSeenAt: (json['lastSeenAt'] as num?)?.toInt(),
-        isCurrent: json['isCurrent'] as bool? ?? false,
-      );
+    sessionId: json['sessionId'] as String? ?? json['id'] as String,
+    deviceLabel: json['deviceLabel'] as String? ?? json['label'] as String?,
+    createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+    lastSeenAt: (json['lastSeenAt'] as num?)?.toInt(),
+    isCurrent: json['isCurrent'] as bool? ?? false,
+  );
 
   @override
-  List<Object?> get props =>
-      [sessionId, deviceLabel, createdAt, lastSeenAt, isCurrent];
+  List<Object?> get props => [
+    sessionId,
+    deviceLabel,
+    createdAt,
+    lastSeenAt,
+    isCurrent,
+  ];
 }

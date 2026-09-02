@@ -14,12 +14,19 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
+import 'cert_pinning.dart';
 import 'voltex_api_exception.dart';
 import 'voltex_config.dart';
 
 class VoltexApiClient {
-  VoltexApiClient({String? sessionToken}) : _sessionToken = sessionToken {
+  /// [pinCertificates] defaults to true (production behaviour). Pass false
+  /// only for local/offline unit tests that never hit the network - it is
+  /// never disabled for a build that talks to voltexchat.online, per
+  /// ANDROID_INTEGRATION.md §16 "Transport".
+  VoltexApiClient({String? sessionToken, bool pinCertificates = true})
+      : _sessionToken = sessionToken {
     _dio = Dio(
       BaseOptions(
         baseUrl: VoltexConfig.restBaseUrl,
@@ -31,6 +38,11 @@ class VoltexApiClient {
         validateStatus: (_) => true, // we translate status codes ourselves
       ),
     );
+
+    if (pinCertificates) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient =
+          VoltexCertPinning.createPinnedHttpClient;
+    }
   }
 
   late final Dio _dio;
@@ -39,9 +51,9 @@ class VoltexApiClient {
   void setSessionToken(String? token) => _sessionToken = token;
 
   Map<String, String> _authHeaders({Map<String, String>? extra}) => {
-        if (_sessionToken != null) 'Authorization': 'Bearer $_sessionToken',
-        ...?extra,
-      };
+    if (_sessionToken != null) 'Authorization': 'Bearer $_sessionToken',
+    ...?extra,
+  };
 
   /// Translates a raw Dio [Response] into either the decoded JSON body or a
   /// [VoltexApiException], per the failure modes in
@@ -55,7 +67,8 @@ class VoltexApiClient {
     Map<String, dynamic>? body;
     if (response.data is Map<String, dynamic>) {
       body = response.data as Map<String, dynamic>;
-    } else if (response.data is String && (response.data as String).isNotEmpty) {
+    } else if (response.data is String &&
+        (response.data as String).isNotEmpty) {
       try {
         body = jsonDecode(response.data as String) as Map<String, dynamic>;
       } catch (_) {
@@ -65,7 +78,10 @@ class VoltexApiClient {
 
     throw VoltexApiException(
       statusCode: status,
-      message: body?['error']?.toString() ?? body?['message']?.toString() ?? 'Request failed ($status)',
+      message:
+          body?['error']?.toString() ??
+          body?['message']?.toString() ??
+          'Request failed ($status)',
       code: body?['code']?.toString(),
       retryAfterSeconds: (body?['retryAfter'] as num?)?.toInt(),
     );
@@ -92,14 +108,17 @@ class VoltexApiClient {
     required String recoverySaltBase64,
     int recoveryIterations = 210000,
   }) async {
-    final res = await _dio.post('/auth/register', data: {
-      'publicKey': publicKeyBase64,
-      'signPublicKey': signPublicKeyBase64,
-      'username': username,
-      'recoveryVerifier': recoveryVerifierHex,
-      'recoverySalt': recoverySaltBase64,
-      'recoveryIterations': recoveryIterations,
-    });
+    final res = await _dio.post(
+      '/auth/register',
+      data: {
+        'publicKey': publicKeyBase64,
+        'signPublicKey': signPublicKeyBase64,
+        'username': username,
+        'recoveryVerifier': recoveryVerifierHex,
+        'recoverySalt': recoverySaltBase64,
+        'recoveryIterations': recoveryIterations,
+      },
+    );
     _unwrap(res);
   }
 
@@ -107,10 +126,10 @@ class VoltexApiClient {
     required String userId,
     required String publicKeyBase64,
   }) async {
-    final res = await _dio.post('/auth/challenge', data: {
-      'userId': userId,
-      'publicKey': publicKeyBase64,
-    });
+    final res = await _dio.post(
+      '/auth/challenge',
+      data: {'userId': userId, 'publicKey': publicKeyBase64},
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return body['challenge'] as String;
   }
@@ -125,26 +144,34 @@ class VoltexApiClient {
     required String signatureBase64,
     required String publicKeyBase64,
   }) async {
-    final res = await _dio.post('/auth/verify', data: {
-      'userId': userId,
-      'challenge': challenge,
-      'signature': signatureBase64,
-      'publicKey': publicKeyBase64,
-    });
+    final res = await _dio.post(
+      '/auth/verify',
+      data: {
+        'userId': userId,
+        'challenge': challenge,
+        'signature': signatureBase64,
+        'publicKey': publicKeyBase64,
+      },
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return body['sessionToken'] as String;
   }
 
   Future<bool> verifySession() async {
-    final res = await _dio.get('/auth/verify-session',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/auth/verify-session',
+      options: Options(headers: _authHeaders()),
+    );
     return (res.statusCode ?? 0) == 200;
   }
 
   Future<({String publicKey, String signPublicKey})> getPublicKeyByUsername(
-      String username) async {
-    final res = await _dio.get('/auth/public-key/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    String username,
+  ) async {
+    final res = await _dio.get(
+      '/auth/public-key/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
       publicKey: body['publicKey'] as String,
@@ -153,9 +180,12 @@ class VoltexApiClient {
   }
 
   Future<({String publicKey, String signPublicKey})> getPublicKeyByUserId(
-      String userId) async {
-    final res = await _dio.get('/auth/public-key/by-user-id/$userId',
-        options: Options(headers: _authHeaders()));
+    String userId,
+  ) async {
+    final res = await _dio.get(
+      '/auth/public-key/by-user-id/$userId',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
       publicKey: body['publicKey'] as String,
@@ -171,29 +201,37 @@ class VoltexApiClient {
   }
 
   Future<String> createWebSocketTicket() async {
-    final res = await _dio.post('/auth/ws-ticket',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/auth/ws-ticket',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return body['ticket'] as String;
   }
 
   Future<void> logout() async {
-    final res = await _dio.post('/auth/logout',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/auth/logout',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<List<Map<String, dynamic>>> listSessions() async {
-    final res = await _dio.get('/auth/sessions',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/auth/sessions',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (body['devices'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
   }
 
   Future<void> revokeSession(String sessionId) async {
-    final res = await _dio.post('/auth/sessions/$sessionId/revoke',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/auth/sessions/$sessionId/revoke',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -203,27 +241,33 @@ class VoltexApiClient {
     required String saltBase64,
     required String ivBase64,
   }) async {
-    final res = await _dio.post('/auth/save-encrypted-keypair',
-        data: {
-          'userId': userId,
-          'encryptedData': encryptedDataBase64,
-          'salt': saltBase64,
-          'iv': ivBase64,
-        },
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/auth/save-encrypted-keypair',
+      data: {
+        'userId': userId,
+        'encryptedData': encryptedDataBase64,
+        'salt': saltBase64,
+        'iv': ivBase64,
+      },
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<({String encryptedData, String salt, String iv})>
-      getEncryptedKeypairByUsername(
+  getEncryptedKeypairByUsername(
     String username, {
     String? recoveryToken,
   }) async {
     final res = await _dio.get(
       '/auth/encrypted-keypair/by-username/$username',
-      options: Options(headers: _authHeaders(extra: recoveryToken != null
-          ? {'X-Recovery-Token': recoveryToken}
-          : null)),
+      options: Options(
+        headers: _authHeaders(
+          extra: recoveryToken != null
+              ? {'X-Recovery-Token': recoveryToken}
+              : null,
+        ),
+      ),
     );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
@@ -234,7 +278,8 @@ class VoltexApiClient {
   }
 
   Future<({String salt, int iterations})> getRecoveryParamsByUsername(
-      String username) async {
+    String username,
+  ) async {
     final res = await _dio.get('/auth/recovery-params/by-username/$username');
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
@@ -244,15 +289,17 @@ class VoltexApiClient {
   }
 
   /// Returns publicKey + single-use recoveryToken (5 min lifetime) needed to
-  /// fetch the encrypted keypair (§6 step 2-3).
+  /// fetch the encrypted keypair (§6 step 2-3). The server resolves the
+  /// account by username (server/routes/auth.ts handleRecoverAccount ->
+  /// resolveAccountIdentifier accepts either userId or username).
   Future<({String publicKey, String recoveryToken})> recoverAccount({
-    required String userId,
+    required String username,
     required String recoveryVerifierHex,
   }) async {
-    final res = await _dio.post('/auth/recover', data: {
-      'userId': userId,
-      'recoveryVerifier': recoveryVerifierHex,
-    });
+    final res = await _dio.post(
+      '/auth/recover',
+      data: {'username': username, 'recoveryVerifier': recoveryVerifierHex},
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
       publicKey: body['publicKey'] as String,
@@ -267,9 +314,13 @@ class VoltexApiClient {
   /// HTTP fallback for sending; prefer the WebSocket (§8). The server
   /// overwrites `timestamp` - use the one returned here.
   Future<({bool persisted, String messageId, int timestamp})> sendMessage(
-      Map<String, dynamic> envelope) async {
-    final res = await _dio.post('/messages/send',
-        data: envelope, options: Options(headers: _authHeaders()));
+    Map<String, dynamic> envelope,
+  ) async {
+    final res = await _dio.post(
+      '/messages/send',
+      data: envelope,
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return (
       persisted: body['persisted'] as bool? ?? true,
@@ -297,8 +348,10 @@ class VoltexApiClient {
   }
 
   Future<List<Map<String, dynamic>>> getConversations() async {
-    final res = await _dio.get('/messages/conversations',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/messages/conversations',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res);
     if (body is List) return body.cast<Map<String, dynamic>>();
     final map = body as Map<String, dynamic>;
@@ -308,8 +361,9 @@ class VoltexApiClient {
 
   Future<void> markConversationRead(String username) async {
     final res = await _dio.put(
-        '/messages/conversations/by-username/$username/read',
-        options: Options(headers: _authHeaders()));
+      '/messages/conversations/by-username/$username/read',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -320,19 +374,23 @@ class VoltexApiClient {
     required String recipientId,
     String scope = 'self',
   }) async {
-    final res = await _dio.delete('/messages/message',
-        data: {
-          'messageId': messageId,
-          'recipientId': recipientId,
-          'scope': scope,
-        },
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/messages/message',
+      data: {
+        'messageId': messageId,
+        'recipientId': recipientId,
+        'scope': scope,
+      },
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> deleteConversation(String username) async {
-    final res = await _dio.delete('/messages/conversation/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/messages/conversation/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -346,26 +404,32 @@ class VoltexApiClient {
     String? avatarBase64,
     required String requestId,
   }) async {
-    final res = await _dio.post('/groups',
-        data: {
-          'name': name,
-          if (bio != null) 'bio': bio,
-          if (avatarBase64 != null) 'avatar': avatarBase64,
-          'requestId': requestId,
-        },
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups',
+      data: {
+        'name': name,
+        if (bio != null) 'bio': bio,
+        if (avatarBase64 != null) 'avatar': avatarBase64,
+        'requestId': requestId,
+      },
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> getGroup(String groupId) async {
-    final res = await _dio.get('/groups/$groupId',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/groups/$groupId',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<List<Map<String, dynamic>>> listGroupConversations() async {
-    final res = await _dio.get('/groups/conversations',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/groups/conversations',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res);
     if (body is List) return body.cast<Map<String, dynamic>>();
     final map = body as Map<String, dynamic>;
@@ -374,27 +438,35 @@ class VoltexApiClient {
   }
 
   Future<void> inviteToGroup(String groupId, String username) async {
-    final res = await _dio.post('/groups/$groupId/invites',
-        data: {'username': username},
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups/$groupId/invites',
+      data: {'username': username},
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<Map<String, dynamic>> getInvite(String inviteId) async {
-    final res = await _dio.get('/group-invites/$inviteId',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/group-invites/$inviteId',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<void> acceptInvite(String inviteId) async {
-    final res = await _dio.post('/group-invites/$inviteId/accept',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/group-invites/$inviteId/accept',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> declineInvite(String inviteId) async {
-    final res = await _dio.post('/group-invites/$inviteId/decline',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/group-invites/$inviteId/decline',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -406,18 +478,19 @@ class VoltexApiClient {
     required int timestamp,
     required Map<String, Map<String, dynamic>> envelopesByMemberUserId,
   }) async {
-    final res = await _dio.post('/groups/$groupId/messages',
-        data: {
-          'timestamp': timestamp,
-          'envelopes': envelopesByMemberUserId,
-        },
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups/$groupId/messages',
+      data: {'timestamp': timestamp, 'envelopes': envelopesByMemberUserId},
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<List<Map<String, dynamic>>> getGroupMessages(String groupId) async {
-    final res = await _dio.get('/groups/$groupId/messages',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/groups/$groupId/messages',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res);
     if (body is List) return body.cast<Map<String, dynamic>>();
     final map = body as Map<String, dynamic>;
@@ -426,21 +499,27 @@ class VoltexApiClient {
   }
 
   Future<void> markGroupRead(String groupId) async {
-    final res = await _dio.put('/groups/$groupId/read',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.put(
+      '/groups/$groupId/read',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> pinGroupMessage(String groupId, String messageId) async {
-    final res = await _dio.post('/groups/$groupId/pin',
-        data: {'messageId': messageId},
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups/$groupId/pin',
+      data: {'messageId': messageId},
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> deleteGroupMessage(String groupId, String messageId) async {
-    final res = await _dio.delete('/groups/$groupId/messages/$messageId',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/groups/$groupId/messages/$messageId',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -449,21 +528,27 @@ class VoltexApiClient {
     required String userId,
     required bool makeAdmin,
   }) async {
-    final res = await _dio.post('/groups/$groupId/admins',
-        data: {'userId': userId, 'isAdmin': makeAdmin},
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups/$groupId/admins',
+      data: {'userId': userId, 'isAdmin': makeAdmin},
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> removeGroupMember(String groupId, String userId) async {
-    final res = await _dio.delete('/groups/$groupId/members/$userId',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/groups/$groupId/members/$userId',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> leaveGroup(String groupId) async {
-    final res = await _dio.post('/groups/$groupId/leave',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/groups/$groupId/leave',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -485,13 +570,15 @@ class VoltexApiClient {
       '/media/images/direct/by-username/$username',
       data: encryptedBytes,
       options: Options(
-        headers: _authHeaders(extra: {
-          'Content-Type': 'application/octet-stream',
-          'X-Voltex-Media-Encryption': 'aes-gcm-v1',
-          'X-Voltex-Original-Content-Type': originalContentType,
-          if (width != null) 'X-Image-Width': '$width',
-          if (height != null) 'X-Image-Height': '$height',
-        }),
+        headers: _authHeaders(
+          extra: {
+            'Content-Type': 'application/octet-stream',
+            'X-Voltex-Media-Encryption': 'aes-gcm-v1',
+            'X-Voltex-Original-Content-Type': originalContentType,
+            if (width != null) 'X-Image-Width': '$width',
+            if (height != null) 'X-Image-Height': '$height',
+          },
+        ),
       ),
     );
     return _unwrap(res) as Map<String, dynamic>;
@@ -508,13 +595,15 @@ class VoltexApiClient {
       '/media/images/groups/$groupId',
       data: encryptedBytes,
       options: Options(
-        headers: _authHeaders(extra: {
-          'Content-Type': 'application/octet-stream',
-          'X-Voltex-Media-Encryption': 'aes-gcm-v1',
-          'X-Voltex-Original-Content-Type': originalContentType,
-          if (width != null) 'X-Image-Width': '$width',
-          if (height != null) 'X-Image-Height': '$height',
-        }),
+        headers: _authHeaders(
+          extra: {
+            'Content-Type': 'application/octet-stream',
+            'X-Voltex-Media-Encryption': 'aes-gcm-v1',
+            'X-Voltex-Original-Content-Type': originalContentType,
+            if (width != null) 'X-Image-Width': '$width',
+            if (height != null) 'X-Image-Height': '$height',
+          },
+        ),
       ),
     );
     return _unwrap(res) as Map<String, dynamic>;
@@ -544,28 +633,36 @@ class VoltexApiClient {
   // ---------------------------------------------------------------------
 
   Future<Map<String, dynamic>> searchGifs(String query) async {
-    final res = await _dio.get('/klipy/gifs/search',
-        queryParameters: {'q': query},
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/klipy/gifs/search',
+      queryParameters: {'q': query},
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> trendingGifs() async {
-    final res = await _dio.get('/klipy/gifs/trending',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/klipy/gifs/trending',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> searchStickers(String query) async {
-    final res = await _dio.get('/klipy/stickers/search',
-        queryParameters: {'q': query},
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/klipy/stickers/search',
+      queryParameters: {'q': query},
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> trendingStickers() async {
-    final res = await _dio.get('/klipy/stickers/trending',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/klipy/stickers/trending',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
@@ -574,8 +671,9 @@ class VoltexApiClient {
   /// bytes response, not JSON) - callers needing raw bytes should mirror
   /// getImageMedia's pattern with this path and query params.
   String klipyAssetUrl(Map<String, String> queryParameters) {
-    final uri = Uri.parse('${VoltexConfig.restBaseUrl}/klipy/asset')
-        .replace(queryParameters: queryParameters);
+    final uri = Uri.parse(
+      '${VoltexConfig.restBaseUrl}/klipy/asset',
+    ).replace(queryParameters: queryParameters);
     return uri.toString();
   }
 
@@ -584,20 +682,27 @@ class VoltexApiClient {
   // ---------------------------------------------------------------------
 
   Future<Map<String, dynamic>> getMyProfile() async {
-    final res = await _dio.get('/profile/me',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/profile/me',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<void> updateMyProfile(Map<String, dynamic> fields) async {
-    final res = await _dio.put('/profile/me',
-        data: fields, options: Options(headers: _authHeaders()));
+    final res = await _dio.put(
+      '/profile/me',
+      data: fields,
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<Map<String, dynamic>> getPublicProfile(String username) async {
-    final res = await _dio.get('/profile/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/profile/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
@@ -606,16 +711,21 @@ class VoltexApiClient {
     required Uint8List imageBytes,
     required String contentType, // image/jpeg or image/png
   }) async {
-    final res = await _dio.post('/profile/avatar',
-        data: imageBytes,
-        options: Options(
-            headers: _authHeaders(extra: {'Content-Type': contentType})));
+    final res = await _dio.post(
+      '/profile/avatar',
+      data: imageBytes,
+      options: Options(
+        headers: _authHeaders(extra: {'Content-Type': contentType}),
+      ),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<void> deleteAvatar() async {
-    final res = await _dio.delete('/profile/avatar',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/profile/avatar',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
@@ -623,14 +733,20 @@ class VoltexApiClient {
       '${VoltexConfig.restBaseUrl}/profile/avatar/by-username/$username';
 
   Future<void> updateSettings(Map<String, dynamic> settings) async {
-    final res = await _dio.post('/profile/settings',
-        data: settings, options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/profile/settings',
+      data: settings,
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
-    final res = await _dio.post('/users/search',
-        data: {'query': query}, options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/users/search',
+      data: {'query': query},
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res);
     if (body is List) return body.cast<Map<String, dynamic>>();
     final map = body as Map<String, dynamic>;
@@ -638,35 +754,45 @@ class VoltexApiClient {
   }
 
   Future<Map<String, dynamic>> getUserByUsername(String username) async {
-    final res = await _dio.get('/users/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/users/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   /// Resolves a username to a user id (needed before encrypting to someone
   /// you haven't messaged yet, §7.2).
   Future<String> resolveUserIdByUsername(String username) async {
-    final res = await _dio.get('/users/resolve/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/users/resolve/$username',
+      options: Options(headers: _authHeaders()),
+    );
     final body = _unwrap(res) as Map<String, dynamic>;
     return body['userId'] as String;
   }
 
   Future<Map<String, dynamic>> getBlockStatus(String username) async {
-    final res = await _dio.get('/blocks/status/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.get(
+      '/blocks/status/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     return _unwrap(res) as Map<String, dynamic>;
   }
 
   Future<void> blockUser(String username) async {
-    final res = await _dio.post('/blocks/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.post(
+      '/blocks/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 
   Future<void> unblockUser(String username) async {
-    final res = await _dio.delete('/blocks/by-username/$username',
-        options: Options(headers: _authHeaders()));
+    final res = await _dio.delete(
+      '/blocks/by-username/$username',
+      options: Options(headers: _authHeaders()),
+    );
     _unwrap(res);
   }
 }

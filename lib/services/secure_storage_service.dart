@@ -30,10 +30,7 @@ class SecureStorageService {
   // --- Identity keypair -----------------------------------------------
 
   Future<void> saveKeyPair(VoltexKeyPair keyPair) async {
-    await _storage.write(
-      key: _keyPairKey,
-      value: jsonEncode(keyPair.toJson()),
-    );
+    await _storage.write(key: _keyPairKey, value: jsonEncode(keyPair.toJson()));
   }
 
   Future<VoltexKeyPair?> loadKeyPair() async {
