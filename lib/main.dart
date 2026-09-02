@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,12 +22,16 @@ import 'theme/voltex_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Certificate pinning (ANDROID_INTEGRATION.md §16 "Transport") must be
-  // preloaded before any Dio/WebSocket client is constructed - both
-  // VoltexApiClient and VoltexWebSocketService call the now-synchronous
-  // VoltexCertPinning.createPinnedHttpClient(), which requires this to
-  // have completed.
-  await VoltexCertPinning.preload();
+  // Certificate pinning (ANDROID_INTEGRATION.md §16 "Transport") is an
+  // Android-only hardening measure: it relies on dart:io's SecurityContext /
+  // HttpClient, which are not meaningfully implemented on Flutter Web (the
+  // browser owns the TLS stack there, so there is nothing for Dart to pin
+  // against, and calling these APIs on web either throws or is a no-op
+  // depending on the compiler). Skip entirely on kIsWeb - the real Android
+  // APK build still preloads and enforces the pin normally.
+  if (!kIsWeb) {
+    await VoltexCertPinning.preload();
+  }
   runApp(const VoltexApp());
 }
 

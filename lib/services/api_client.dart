@@ -15,6 +15,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'cert_pinning.dart';
 import 'voltex_api_exception.dart';
@@ -39,7 +40,13 @@ class VoltexApiClient {
       ),
     );
 
-    if (pinCertificates) {
+    // Skip cert pinning entirely on Flutter Web: Dio uses a browser-based
+    // HTTP adapter there (not IOHttpClientAdapter), so this cast would
+    // throw at runtime and crash app startup before any UI could render.
+    // The browser already owns TLS trust for web builds, so there is no
+    // client-side pin to apply anyway - this is Android-only hardening
+    // (ANDROID_INTEGRATION.md §16 "Transport").
+    if (pinCertificates && !kIsWeb) {
       (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient =
           VoltexCertPinning.createPinnedHttpClient;
     }

@@ -8,6 +8,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -72,10 +73,18 @@ class VoltexWebSocketService {
       // so the WebSocket TLS handshake is subject to the identical
       // certificate pin - an unpinned WS connection would otherwise be a
       // MITM back door even with a pinned REST client.
-      final channel = IOWebSocketChannel.connect(
-        uri,
-        customClient: VoltexCertPinning.createPinnedHttpClient(),
-      );
+      //
+      // On Flutter Web, dart:io's IOWebSocketChannel/HttpClient are not
+      // usable (the browser's native WebSocket API owns the TLS handshake
+      // there), so fall back to the platform-default
+      // WebSocketChannel.connect, which resolves to the browser's
+      // HtmlWebSocketChannel on web builds.
+      final channel = kIsWeb
+          ? WebSocketChannel.connect(uri)
+          : IOWebSocketChannel.connect(
+              uri,
+              customClient: VoltexCertPinning.createPinnedHttpClient(),
+            );
       await channel.ready;
 
       _channel = channel;
