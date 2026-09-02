@@ -24,9 +24,7 @@ class SecureStorageService {
   static const _usernameKey = 'voltex_username_v1';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(
-      encryptedSharedPreferences: true,
-    ),
+    aOptions: AndroidOptions(),
   );
 
   // --- Identity keypair -----------------------------------------------

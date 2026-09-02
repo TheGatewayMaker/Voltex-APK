@@ -25,6 +25,9 @@ class UserProfile extends Equatable {
         avatarUrl: json['avatarUrl'] as String?,
         discoverable: json['discoverable'] as bool? ?? true,
       );
+
+  @override
+  List<Object?> get props => [userId, username, bio, avatarUrl, discoverable];
 }
 
 /// The current signed-in session: token + own identity. Kept minimal and
